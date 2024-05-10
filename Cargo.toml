@@ -1,0 +1,10 @@
+[package]
+name = "linkedin-post"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+reqwest = { version = "0.11", features = ["blocking", "json"] }
+tokio = { version = "1", features = ["full"] }
+scraper = "0.12.0"
+
