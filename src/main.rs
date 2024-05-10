@@ -3,7 +3,7 @@ use scraper::{Html, Selector};
 use reqwest;
 use tokio;
 use tokio::time::error::Elapsed;
-
+use regex::Regex;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -20,53 +20,37 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let document = Html::parse_document(&response);
 
     // Define a selector to target comments
-    let comment_selector = Selector::parse(".app-aware-link").unwrap();
-
-    // Increase timeout for waiting for comments to load
-    let timeout = std::time::Duration::from_secs(120);
-
-    // Wait for comments section to load
-    println!("Waiting for comments section to load...");
-    let result = tokio::time::timeout(timeout, async {
-        loop {
-            if document.select(&comment_selector).next().is_some() {
-                println!("Comments section loaded.");
-                break;
-            }
-            println!("Comments section not loaded yet. Retrying...");
-            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-        }
-    })
-    .await.map_err(|e| Box::new(e) as Box<dyn Error>); // Convert Elapsed error to Box<dyn Error>
-
-    if let Err(e) = result {
-        println!("Error waiting for comments section to load: {:?}", e);
-        return Err(e);
-    }
+    let comment_selector = Selector::parse(".comments-post-meta").unwrap();
 
     // Extract comments
     println!("Extracting comments...");
     let comments: Vec<_> = document
         .select(&comment_selector)
         .map(|comment| {
-            let author = comment
-                .select(&Selector::parse(".comments-post-meta__profile-link").unwrap())
-                .next()
-                .map(|author_element| author_element.text().collect::<String>())
-                .unwrap_or_else(|| String::from("Unknown author"));
             let content = comment
-                .select(&Selector::parse(".comments-comment-item-content").unwrap())
+                .select(&Selector::parse(".comments-post-meta").unwrap())
                 .next()
                 .map(|content_element| content_element.text().collect::<String>())
                 .unwrap_or_else(|| String::from("No content"));
-            (author, content)
+            content
         })
         .collect();
 
-    // Print comments
-    println!("Printing comments:");
-    for (index, (author, content)) in comments.iter().enumerate() {
-        println!("Comment {}: Author: {}, Content: {}", index + 1, author, content);
+    // Define a regular expression pattern to match emails
+    let email_regex = Regex::new(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}").unwrap();
+
+    // Extract emails from comments
+    let mut extracted_emails = Vec::new();
+    for comment_content in comments {
+        for email in email_regex.find_iter(&comment_content) {
+            extracted_emails.push(email.as_str().to_string());
+        }
+    }
+
+    // Print extracted emails
+    println!("Extracted emails:");
+    for email in extracted_emails {
+        println!("{}", email);
     }
 
     println!("Program execution completed successfully.");
